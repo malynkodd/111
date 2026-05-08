@@ -18,12 +18,30 @@ APP_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file
 FONTS_DIR = os.path.join(APP_DIR, "fonts")
 FONT_PATH = os.path.join(FONTS_DIR, "DejaVuSans.ttf")
 FONT_BOLD_PATH = os.path.join(FONTS_DIR, "DejaVuSans-Bold.ttf")
-FONT_URL = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
-FONT_BOLD_URL = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf"
+
+# System fallback locations (Linux/Mac)
+_SYSTEM_FONT_PATHS = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+    "/System/Library/Fonts/Geneva.ttf",
+]
+_SYSTEM_BOLD_PATHS = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+]
 
 _font_loaded = False
 _BODY_FONT = "Helvetica"
 _BOLD_FONT = "Helvetica-Bold"
+
+
+def _find_font(primary: str, system_paths: list) -> str | None:
+    if os.path.exists(primary):
+        return primary
+    for p in system_paths:
+        if os.path.exists(p):
+            return p
+    return None
 
 
 def _ensure_font():
@@ -31,18 +49,18 @@ def _ensure_font():
     if _font_loaded:
         return
     os.makedirs(FONTS_DIR, exist_ok=True)
+    reg_path = _find_font(FONT_PATH, _SYSTEM_FONT_PATHS)
+    bold_path = _find_font(FONT_BOLD_PATH, _SYSTEM_BOLD_PATHS)
     try:
-        if not os.path.exists(FONT_PATH):
-            urllib.request.urlretrieve(FONT_URL, FONT_PATH)
-        if not os.path.exists(FONT_BOLD_PATH):
-            urllib.request.urlretrieve(FONT_BOLD_URL, FONT_BOLD_PATH)
-        pdfmetrics.registerFont(TTFont("DejaVuSans", FONT_PATH))
-        pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", FONT_BOLD_PATH))
-        _BODY_FONT = "DejaVuSans"
-        _BOLD_FONT = "DejaVuSans-Bold"
+        if reg_path:
+            pdfmetrics.registerFont(TTFont("DejaVuSans", reg_path))
+        if bold_path:
+            pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", bold_path))
+        if reg_path and bold_path:
+            _BODY_FONT = "DejaVuSans"
+            _BOLD_FONT = "DejaVuSans-Bold"
     except Exception:
-        _BODY_FONT = "Helvetica"
-        _BOLD_FONT = "Helvetica-Bold"
+        pass
     _font_loaded = True
 
 

@@ -80,7 +80,7 @@
 {% endif %}
 
 <!-- Scores table -->
-<h4 class="mt-3">Оцінки експертів (раунд {{ sess.current_round }})</h4>
+<h4 class="mt-3">Оцінки експертів (раунд {{ display_round }})</h4>
 <div class="table-responsive mb-4">
   <table class="table table-bordered table-hover align-middle">
     <thead class="table-dark">
@@ -90,7 +90,7 @@
       </tr>
     </thead>
     <tbody>
-    {% set cur_round = sess.current_round %}
+    {% set cur_round = display_round %}
     {% for expert in experts %}
       <tr>
         <td>{{ expert.full_name }} <span class="text-muted small">({{ expert.competence }})</span></td>
@@ -231,11 +231,11 @@ const kendallByRound = {{ kendall_w_by_round | tojson }};
 // Expert scores for heatmap
 const expertNames = {{ experts | map(attribute='full_name') | list | tojson }};
 const expertIds   = {{ experts | map(attribute='id') | list | tojson }};
-const curRound    = {{ sess.current_round }};
+const curRound    = {{ display_round }};
 // Build expert->alt->score map for current round
 const scoreMap = {};
 {% for row in scores %}
-  {% if row.round_no == sess.current_round %}
+  {% if row.round_no == display_round %}
   if (!scoreMap[{{ row.expert_id }}]) scoreMap[{{ row.expert_id }}] = {};
   scoreMap[{{ row.expert_id }}][{{ row.alternative_name | tojson }}] = {{ row.score }};
   {% endif %}

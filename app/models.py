@@ -274,6 +274,9 @@ def session_summary(session_id: int, db_path: str | None = None):
         r = build_rankings_from_scores(rscores, alt_names)
         kendall_w_by_round[rn] = kendall_w_from_rankings(r, alt_names)
 
+    # Show the round with the most recent real data, not just current_round
+    display_round = max(round_map) if round_map else (session["current_round"] if session else 1)
+
     return dict(
         sess=session,
         alternatives=alternatives,
@@ -292,4 +295,5 @@ def session_summary(session_id: int, db_path: str | None = None):
         alt_names=alt_names,
         expert_data=expert_data,
         round_map=round_map,
+        display_round=display_round,
     )
