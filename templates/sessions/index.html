@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Сесії{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2><i class="bi bi-collection"></i> Сесії експертного оцінювання</h2>
+  {% if session.get('role') == 'organizer' %}
+  <a href="{{ url_for('sessions.create') }}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Нова сесія</a>
+  {% endif %}
+</div>
+
+<!-- Filters -->
+<form method="get" class="row g-2 mb-4">
+  <div class="col-md-4">
+    <input type="text" class="form-control" name="q" placeholder="Пошук по назві…" value="{{ search }}">
+  </div>
+  <div class="col-md-2">
+    <select class="form-select" name="status">
+      <option value="all" {% if status_filter=='all' %}selected{% endif %}>Всі</option>
+      <option value="active" {% if status_filter=='active' %}selected{% endif %}>Активні</option>
+      <option value="completed" {% if status_filter=='completed' %}selected{% endif %}>Завершені</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <select class="form-select" name="sort">
+      <option value="newest" {% if sort=='newest' %}selected{% endif %}>Новіші</option>
+      <option value="oldest" {% if sort=='oldest' %}selected{% endif %}>Старіші</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-outline-secondary">Фільтрувати</button>
+  </div>
+</form>
+
+{% if sessions %}
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+  {% for s in sessions %}
+  <div class="col">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">{{ s.title }}</h5>
+        <p class="card-text text-muted small">{{ s.description[:120] }}{% if s.description|length > 120 %}…{% endif %}</p>
+        <p class="text-muted small mb-1"><i class="bi bi-clock"></i> {{ s.created_at }}</p>
+        <span class="badge {% if s.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">
+          {% if s.status == 'active' %}Активна{% else %}Завершена{% endif %}
+        </span>
+      </div>
+      <div class="card-footer bg-transparent">
+        <a href="{{ url_for('sessions.detail', session_id=s.id) }}" class="btn btn-sm btn-primary">Відкрити</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<nav class="mt-4">
+  <ul class="pagination justify-content-center">
+    {% for p in range(1, total_pages + 1) %}
+    <li class="page-item {% if p == page %}active{% endif %}">
+      <a class="page-link" href="{{ url_for('sessions.index', q=search, status=status_filter, sort=sort, page=p) }}">{{ p }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+{% else %}
+<div class="text-center text-muted py-5">
+  <i class="bi bi-inbox fs-1"></i>
+  <p class="mt-2">Сесій не знайдено.</p>
+</div>
+{% endif %}
+{% endblock %}

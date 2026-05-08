@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Компетентність експертів{% endblock %}
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-star"></i> Компетентність експертів</h3>
+<div class="card p-4" style="max-width:900px">
+  <form method="post">
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Експерт</th>
+            <th>Самооцінка (0–100%)</th>
+            {% if current_user_role == 'organizer' %}<th>Взаємна оцінка (0–100%)</th>{% endif %}
+            <th>Поточні значення</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for exp in experts %}
+        {% set c = comp_map.get(exp.id) %}
+        <tr>
+          <td>{{ exp.full_name }}</td>
+          <td>
+            <input type="range" class="form-range" name="self_{{ exp.id }}"
+              min="0" max="100" step="1"
+              value="{{ (c.self_assessment * 100)|int if c and c.self_assessment is not none else 50 }}"
+              oninput="document.getElementById('sv_{{ exp.id }}').textContent=this.value+'%'">
+            <span id="sv_{{ exp.id }}">{{ (c.self_assessment * 100)|int if c and c.self_assessment is not none else 50 }}%</span>
+          </td>
+          {% if current_user_role == 'organizer' %}
+          <td>
+            <input type="range" class="form-range" name="peer_{{ exp.id }}"
+              min="0" max="100" step="1"
+              value="{{ (c.peer_assessment * 100)|int if c and c.peer_assessment is not none else 50 }}"
+              oninput="document.getElementById('pv_{{ exp.id }}').textContent=this.value+'%'">
+            <span id="pv_{{ exp.id }}">{{ (c.peer_assessment * 100)|int if c and c.peer_assessment is not none else 50 }}%</span>
+          </td>
+          {% endif %}
+          <td>
+            Само: {% if c and c.self_assessment is not none %}{{ "%.0f"|format(c.self_assessment*100) }}%{% else %}—{% endif %} |
+            Взаємна: {% if c and c.peer_assessment is not none %}{{ "%.0f"|format(c.peer_assessment*100) }}%{% else %}—{% endif %} |
+            Підсумкова: {% if c and c.final_weight is not none %}<strong>{{ "%.2f"|format(c.final_weight) }}</strong>{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Зберегти</button>
+    <a href="{{ url_for('sessions.detail', session_id=session_id) }}" class="btn btn-outline-secondary ms-2">Назад</a>
+  </form>
+</div>
+{% endblock %}

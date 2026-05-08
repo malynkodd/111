@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+{% block title %}{{ sess.title }}{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h2>{{ sess.title }}
+      <span class="badge {% if sess.status == 'active' %}bg-success{% else %}bg-secondary{% endif %} fs-6">
+        {% if sess.status == 'active' %}Активна{% else %}Завершена{% endif %}
+      </span>
+    </h2>
+    <p class="text-muted">{{ sess.description }}</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('reports.report', session_id=sess.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+    {% if current_user_role in ('organizer', 'expert') and sess.status == 'active' %}
+    <a href="{{ url_for('scoring.score', session_id=sess.id) }}" class="btn btn-primary btn-sm"><i class="bi bi-pencil-square"></i> Оцінити</a>
+    {% endif %}
+    {% if current_user_role == 'organizer' and sess.status == 'active' %}
+    <a href="{{ url_for('sessions.competence', session_id=sess.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-star"></i> Компетентність</a>
+    <form method="post" action="{{ url_for('sessions.next_round', session_id=sess.id) }}" class="d-inline">
+      <button type="submit" class="btn btn-outline-success btn-sm"><i class="bi bi-arrow-right-circle"></i> Наступний раунд</button>
+    </form>
+    <form method="post" action="{{ url_for('sessions.complete_session', session_id=sess.id) }}" class="d-inline">
+      <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Завершити сесію?')"><i class="bi bi-stop-circle"></i> Завершити</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card stat-card text-center p-3">
+      <span class="text-muted small">Kendall W</span>
+      <strong class="{% if kendall_w >= 0.7 %}text-success{% elif kendall_w >= 0.5 %}text-warning{% else %}text-danger{% endif %}">
+        {{ "%.3f"|format(kendall_w) }}
+      </strong>
+      <small class="text-muted">{% if kendall_w >= 0.7 %}Висока узгодженість{% elif kendall_w >= 0.5 %}Середня{% else %}Низька{% endif %}</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card text-center p-3">
+      <span class="text-muted small">Експертів</span>
+      <strong>{{ experts|length }}</strong>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card text-center p-3">
+      <span class="text-muted small">Альтернатив</span>
+      <strong>{{ alternatives|length }}</strong>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card text-center p-3">
+      <span class="text-muted small">Раунд</span>
+      <strong>{{ sess.current_round }} / {{ sess.max_rounds }}</strong>
+    </div>
+  </div>
+</div>
+
+<!-- Consensus ranking -->
+{% if consensus %}
+<div class="card mb-4 p-3">
+  <h5><i class="bi bi-trophy"></i> Консенсусне ранжування</h5>
+  <ol class="mb-0">
+    {% for alt in consensus %}<li {% if loop.first %}class="fw-bold text-success"{% endif %}>{{ alt }}</li>{% endfor %}
+  </ol>
+</div>
+{% endif %}
+
+<!-- Outliers warning -->
+{% if outliers %}
+<div class="alert alert-warning">
+  <i class="bi bi-exclamation-triangle"></i> <strong>Аутлайери:</strong>
+  {% for eid, dev in outliers %}Експерт ID={{ eid }} (відхилення {{ dev }}σ){% if not loop.last %}, {% endif %}{% endfor %}
+</div>
+{% endif %}
+
+<!-- Scores table -->
+<h4 class="mt-3">Оцінки експертів (раунд {{ sess.current_round }})</h4>
+<div class="table-responsive mb-4">
+  <table class="table table-bordered table-hover align-middle">
+    <thead class="table-dark">
+      <tr>
+        <th>Експерт</th>
+        {% for alt in alternatives %}<th>{{ alt.name }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+    {% set cur_round = sess.current_round %}
+    {% for expert in experts %}
+      <tr>
+        <td>{{ expert.full_name }} <span class="text-muted small">({{ expert.competence }})</span></td>
+        {% for alt in alternatives %}
+          {% set ns = namespace(value=0) %}
+          {% for row in scores %}
+            {% if row.expert_id == expert.id and row.alternative_id == alt.id and row.round_no == cur_round %}
+              {% set ns.value = row.score %}
+            {% endif %}
+          {% endfor %}
+          <td>{{ ns.value }}</td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Method results -->
+<h4>Результати методів</h4>
+<div class="row g-3 mb-4">
+  {% for method_name, result in methods.items() %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100 p-3">
+      <h6 class="fw-bold">{{ method_name }}</h6>
+      <ul class="list-unstyled mb-2">
+        {% for alt_name, value in result.scores.items()|sort(attribute='1', reverse=True) %}
+        <li>{{ alt_name }}: <strong>{{ "%.3f"|format(value) }}</strong></li>
+        {% endfor %}
+      </ul>
+      <p class="mb-0"><span class="winner-badge">{{ result.winner }}</span></p>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Consistency metrics table -->
+<h4>Метрики узгодженості</h4>
+<div class="table-responsive mb-4">
+  <table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th>Альтернатива</th><th>CV</th><th>Ентропія</th></tr></thead>
+    <tbody>
+    {% for alt_name, val in cv.items() %}
+    <tr>
+      <td>{{ alt_name }}</td>
+      <td>{{ "%.3f"|format(val) }}</td>
+      <td>{{ "%.3f"|format(entropy[alt_name]) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Competence table -->
+{% if competences %}
+<h4>Компетентність експертів</h4>
+<div class="table-responsive mb-4">
+  <table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th>Експерт</th><th>Самооцінка</th><th>Взаємна оцінка</th><th>Підсумкова вага</th></tr></thead>
+    <tbody>
+    {% set comp_map = {} %}
+    {% for c in competences %}{% set _ = comp_map.update({c.expert_id: c}) %}{% endfor %}
+    {% for expert in experts %}
+    {% set c = comp_map.get(expert.id) %}
+    <tr>
+      <td>{{ expert.full_name }}</td>
+      <td>{% if c and c.self_assessment is not none %}{{ "%.2f"|format(c.self_assessment) }}{% else %}—{% endif %}</td>
+      <td>{% if c and c.peer_assessment is not none %}{{ "%.2f"|format(c.peer_assessment) }}{% else %}—{% endif %}</td>
+      <td>{% if c and c.final_weight is not none %}<strong>{{ "%.2f"|format(c.final_weight) }}</strong>{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Kendall W by round -->
+{% if kendall_w_by_round|length > 1 %}
+<h4>Зворотний зв'язок між раундами</h4>
+<div class="d-flex gap-2 mb-3 flex-wrap">
+  {% for rn in kendall_w_by_round.keys()|sort %}
+  <a href="{{ url_for('sessions.feedback', session_id=sess.id, round_no=rn) }}" class="btn btn-outline-info btn-sm">
+    Раунд {{ rn }} (W={{ "%.3f"|format(kendall_w_by_round[rn]) }})
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ═══════════════ CHARTS ═══════════════ -->
+<h4 class="mt-4">Візуалізація результатів</h4>
+<div class="row g-4 mb-4">
+
+  <!-- 8.1 Bar chart: rankings by method -->
+  <div class="col-12 col-lg-6">
+    <div class="card p-3">
+      <h6 class="fw-bold">Порівняння ранжувань за методами</h6>
+      <div class="chart-container"><canvas id="chartBar"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 8.3 Kendall W dynamics -->
+  <div class="col-12 col-lg-6">
+    <div class="card p-3">
+      <h6 class="fw-bold">Динаміка узгодженості Kendall W</h6>
+      <div class="chart-container"><canvas id="chartLine"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 8.2 Heatmap -->
+  <div class="col-12 col-lg-6">
+    <div class="card p-3">
+      <h6 class="fw-bold">Теплова карта оцінок експертів</h6>
+      <div class="table-responsive" id="heatmapTable"></div>
+    </div>
+  </div>
+
+  <!-- 8.4 Correlation matrix -->
+  <div class="col-12 col-lg-6">
+    <div class="card p-3">
+      <h6 class="fw-bold">Матриця кореляцій між методами</h6>
+      <div class="table-responsive" id="corrTable"></div>
+    </div>
+  </div>
+
+</div>
+
+{% block scripts %}
+<script>
+// ── Data from server ──────────────────────────────────────────────────────
+const altNames = {{ alt_names | tojson }};
+const methodNames = {{ methods.keys() | list | tojson }};
+const methodRankings = {};
+{% for mn, res in methods.items() %}
+  methodRankings[{{ mn | tojson }}] = {{ res.ranking | tojson }};
+{% endfor %}
+const kendallByRound = {{ kendall_w_by_round | tojson }};
+
+// Expert scores for heatmap
+const expertNames = {{ experts | map(attribute='full_name') | list | tojson }};
+const expertIds   = {{ experts | map(attribute='id') | list | tojson }};
+const curRound    = {{ sess.current_round }};
+// Build expert->alt->score map for current round
+const scoreMap = {};
+{% for row in scores %}
+  {% if row.round_no == sess.current_round %}
+  if (!scoreMap[{{ row.expert_id }}]) scoreMap[{{ row.expert_id }}] = {};
+  scoreMap[{{ row.expert_id }}][{{ row.alternative_name | tojson }}] = {{ row.score }};
+  {% endif %}
+{% endfor %}
+
+// ── 8.1 Grouped horizontal bar chart ────────────────────────────────────
+(function() {
+  const rankMap = {};
+  for (const [mn, ranking] of Object.entries(methodRankings)) {
+    rankMap[mn] = {};
+    ranking.forEach((alt, i) => { rankMap[mn][alt] = i + 1; });
+  }
+  const palette = ['#2d6cdf','#e74c3c','#27ae60','#f39c12','#8e44ad'];
+  const datasets = methodNames.map((mn, i) => ({
+    label: mn,
+    data: altNames.map(a => rankMap[mn] ? rankMap[mn][a] : 0),
+    backgroundColor: palette[i % palette.length] + 'cc',
+    borderColor: palette[i % palette.length],
+    borderWidth: 1,
+  }));
+  new Chart(document.getElementById('chartBar'), {
+    type: 'bar',
+    data: { labels: altNames, datasets },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { reverse: false, title: { display: true, text: 'Ранг (1 = найкращий)' }, min: 0 },
+      },
+      plugins: { legend: { position: 'bottom' } },
+    },
+  });
+})();
+
+// ── 8.3 Line chart: Kendall W by round ──────────────────────────────────
+(function() {
+  const rounds = Object.keys(kendallByRound).map(Number).sort((a,b)=>a-b);
+  const vals   = rounds.map(r => kendallByRound[r]);
+  new Chart(document.getElementById('chartLine'), {
+    type: 'line',
+    data: {
+      labels: rounds.map(r => 'Раунд ' + r),
+      datasets: [
+        {
+          label: 'Kendall W',
+          data: vals,
+          borderColor: '#2d6cdf',
+          backgroundColor: '#2d6cdf33',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 5,
+        },
+        {
+          label: 'Поріг 0.7',
+          data: rounds.map(() => 0.7),
+          borderColor: '#e74c3c',
+          borderDash: [6, 4],
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { min: 0, max: 1 } },
+      plugins: { legend: { position: 'bottom' } },
+    },
+  });
+})();
+
+// ── 8.2 Heatmap via canvas table ─────────────────────────────────────────
+(function() {
+  function scoreColor(v, min, max) {
+    if (max === min) return '#f39c12';
+    const t = (v - min) / (max - min);
+    const r = Math.round(231 + (39  - 231) * t);
+    const g = Math.round(76  + (174 - 76)  * t);
+    const b = Math.round(60  + (96  - 60)  * t);
+    return `rgb(${r},${g},${b})`;
+  }
+  // Gather all values for range
+  let allVals = [];
+  for (const eid of expertIds) {
+    for (const alt of altNames) {
+      const v = scoreMap[eid] && scoreMap[eid][alt] != null ? scoreMap[eid][alt] : 0;
+      allVals.push(v);
+    }
+  }
+  const minV = Math.min(...allVals), maxV = Math.max(...allVals);
+
+  let html = '<table class="table table-bordered table-sm" style="font-size:12px"><thead><tr><th>Експерт</th>';
+  for (const alt of altNames) html += `<th style="max-width:80px;word-break:break-word">${alt}</th>`;
+  html += '</tr></thead><tbody>';
+  for (let i = 0; i < expertIds.length; i++) {
+    const eid = expertIds[i];
+    html += `<tr><td class="fw-bold">${expertNames[i]}</td>`;
+    for (const alt of altNames) {
+      const v = scoreMap[eid] && scoreMap[eid][alt] != null ? scoreMap[eid][alt] : 0;
+      const bg = scoreColor(v, minV, maxV);
+      html += `<td class="heatmap-cell" style="background:${bg};color:#fff;font-weight:700">${v}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('heatmapTable').innerHTML = html;
+})();
+
+// ── 8.4 Correlation matrix table ─────────────────────────────────────────
+(function() {
+  const corrMatrix = {{ corr_matrix | tojson }};
+  const mNames = Object.keys(corrMatrix);
+  if (!mNames.length) { document.getElementById('corrTable').innerHTML = '<p class="text-muted">Немає даних</p>'; return; }
+
+  function corrColor(v) {
+    const t = (v + 1) / 2;
+    const r = Math.round(231 + (39  - 231) * t);
+    const g = Math.round(76  + (174 - 76)  * t);
+    const b = Math.round(60  + (96  - 60)  * t);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  let html = '<table class="table table-bordered table-sm" style="font-size:11px"><thead><tr><th>Метод</th>';
+  for (const mn of mNames) html += `<th style="max-width:90px;word-break:break-word">${mn}</th>`;
+  html += '</tr></thead><tbody>';
+  for (const mn of mNames) {
+    html += `<tr><td class="fw-bold" style="font-size:11px">${mn}</td>`;
+    for (const mn2 of mNames) {
+      const cell = corrMatrix[mn] && corrMatrix[mn][mn2] ? corrMatrix[mn][mn2] : {tau:1,rho:1};
+      const avg = (cell.tau + cell.rho) / 2;
+      const bg = corrColor(avg);
+      html += `<td style="background:${bg};color:#fff;text-align:center">τ=${cell.tau.toFixed(2)}<br>ρ=${cell.rho.toFixed(2)}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('corrTable').innerHTML = html;
+})();
+</script>
+{% endblock %}
+{% endblock %}
