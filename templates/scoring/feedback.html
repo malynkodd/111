@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Зворотний зв'язок — Раунд {{ round_no }}{% endblock %}
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-chat-square-text"></i> Зворотний зв'язок — Раунд {{ round_no }}</h3>
+<div class="alert alert-info">
+  <i class="bi bi-people"></i>
+  Переглянули: <strong>{{ viewed_count }}</strong> /{{ total_experts }} |
+  Готові до наступного раунду: <strong>{{ ready_count }}</strong> /{{ total_experts }}
+</div>
+
+<div class="card p-4 mb-4">
+  <h5>Анонімна статистика по альтернативах</h5>
+  <div class="table-responsive">
+    <table class="table table-bordered table-sm">
+      <thead class="table-dark">
+        <tr>
+          <th>Альтернатива</th>
+          <th>Медіана</th>
+          <th>Q1</th>
+          <th>Q3</th>
+          <th>IQR</th>
+          <th>Середнє</th>
+          <th>Ст. відхилення</th>
+          {% if my_scores %}<th>Ваша оцінка</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for alt in alt_names %}
+      {% set s = stats.get(alt, {}) %}
+      <tr>
+        <td class="fw-bold">{{ alt }}</td>
+        <td>{{ s.get('median', '—') }}</td>
+        <td>{{ s.get('q1', '—') }}</td>
+        <td>{{ s.get('q3', '—') }}</td>
+        <td>{{ s.get('iqr', '—') }}</td>
+        <td>{{ s.get('mean', '—') }}</td>
+        <td>{{ s.get('std', '—') }}</td>
+        {% if my_scores %}
+        <td><strong>{{ my_scores.get(alt, '—') }}</strong></td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if my_expert %}
+<div class="card p-4" style="max-width:600px">
+  <h5>Підтвердити готовність до наступного раунду</h5>
+  <form method="post" action="{{ url_for('sessions.mark_ready', session_id=session_id, round_no=round_no) }}">
+    <div class="mb-3">
+      <label class="form-label">Коментар (опційно)</label>
+      <textarea class="form-control" name="comment" rows="3" placeholder="Ваші зауваження до результатів раунду…"></textarea>
+    </div>
+    <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Готовий до наступного раунду</button>
+  </form>
+</div>
+{% endif %}
+
+{% if current_user_role == 'organizer' and ready_count >= total_experts %}
+<div class="alert alert-success mt-3">
+  <i class="bi bi-check-all"></i> Всі експерти готові.
+  <form method="post" action="{{ url_for('sessions.next_round', session_id=session_id) }}" class="d-inline">
+    <button type="submit" class="btn btn-success btn-sm ms-2">Почати раунд {{ round_no + 1 }}</button>
+  </form>
+</div>
+{% endif %}
+
+<a href="{{ url_for('sessions.detail', session_id=session_id) }}" class="btn btn-outline-secondary mt-3">
+  <i class="bi bi-arrow-left"></i> Назад до сесії
+</a>
+{% endblock %}

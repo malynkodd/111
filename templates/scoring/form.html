@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Заповнення оцінок{% endblock %}
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-pencil-square"></i> Заповнення оцінок — Раунд {{ round_no }}</h3>
+<div class="card p-4">
+  <form method="post">
+    <input type="hidden" name="round_no" value="{{ round_no }}">
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Експерт</th>
+            {% for alt in alts %}<th>{{ alt.name }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        {% for expert in experts %}
+          {% if expert.id in allowed_expert_ids %}
+          <tr>
+            <td class="fw-bold">{{ expert.full_name }}</td>
+            {% for alt in alts %}
+            <td>
+              <input type="number" class="form-control form-control-sm" style="width:80px"
+                name="score_{{ expert.id }}_{{ alt.id }}"
+                min="0" max="10" step="0.1"
+                value="{{ score_map.get((expert.id, alt.id), 0) }}">
+            </td>
+            {% endfor %}
+          </tr>
+          {% else %}
+          <tr class="table-secondary">
+            <td class="text-muted">{{ expert.full_name }}</td>
+            {% for alt in alts %}
+            <td class="text-muted text-center">{{ score_map.get((expert.id, alt.id), 0) }}</td>
+            {% endfor %}
+          </tr>
+          {% endif %}
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Зберегти оцінки</button>
+    <a href="{{ url_for('sessions.detail', session_id=session_id) }}" class="btn btn-outline-secondary ms-2">Скасувати</a>
+  </form>
+</div>
+{% endblock %}

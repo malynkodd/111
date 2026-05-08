@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Нова сесія{% endblock %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-plus-circle"></i> Нова сесія</h2>
+<div class="card p-4" style="max-width:800px">
+  <form method="post">
+    <div class="mb-3">
+      <label class="form-label fw-bold">Назва</label>
+      <input type="text" class="form-control" name="title" required value="Вибір цифрової платформи">
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-bold">Опис</label>
+      <textarea class="form-control" name="description" rows="3">Пілотна сесія для демонстрації роботи системи.</textarea>
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-bold">Максимальна кількість раундів</label>
+      <input type="number" class="form-control" name="max_rounds" min="1" max="10" value="3">
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-bold">Альтернативи <small class="text-muted">(кожна з нового рядка)</small></label>
+      <textarea class="form-control" name="alternatives" rows="5">Альтернатива A
+Альтернатива B
+Альтернатива C
+Альтернатива D</textarea>
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-bold">Експерти <small class="text-muted">(кожен з нового рядка)</small></label>
+      <textarea class="form-control" name="experts" rows="4">Експерт 1
+Експерт 2
+Експерт 3
+Експерт 4</textarea>
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-bold">Коефіцієнти компетентності <small class="text-muted">(кожен з нового рядка, 0–1)</small></label>
+      <textarea class="form-control" name="competencies" rows="4">0.90
+0.85
+0.80
+0.95</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle"></i> Створити сесію</button>
+  </form>
+</div>
+{% endblock %}
