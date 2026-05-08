@@ -21,7 +21,7 @@ def score(session_id: int):
     alts = conn.execute(
         "SELECT * FROM alternatives WHERE session_id=? ORDER BY id", (session_id,)
     ).fetchall()
-    round_no = sess["current_round"] if sess else 1
+    round_no = int(sess["current_round"] or 1) if sess else 1
 
     if request.method == "POST":
         round_no = int(request.form.get("round_no", round_no))
@@ -69,11 +69,17 @@ def score(session_id: int):
         for expert_id in allowed_expert_ids:
             for alt in alts:
                 key = f"score_{expert_id}_{alt['id']}"
-                score_val = float(request.form.get(key, 0))
+                raw = request.form.get(key, "0")
+                try:
+                    score_val = float(raw) if raw.strip() else 0.0
+                except ValueError:
+                    score_val = 0.0
                 conn.execute(
                     "INSERT INTO scores (session_id, expert_id, alternative_id, round_no, score) VALUES (?,?,?,?,?)",
                     (session_id, expert_id, alt["id"], round_no, score_val),
                 )
+        # Update session's current_round to the round we just scored
+        conn.execute("UPDATE sessions SET current_round=? WHERE id=?", (round_no, session_id))
         conn.commit()
         conn.close()
         flash("Оцінки збережено.")

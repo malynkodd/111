@@ -1,9 +1,32 @@
 from __future__ import annotations
 import os
+import secrets
 from flask import Flask
 from dotenv import load_dotenv
 
 load_dotenv()
+
+_APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_KEY_FILE = os.path.join(_APP_DIR, ".secret_key")
+
+
+def _get_secret_key() -> str:
+    """Return a stable secret key: env var > .secret_key file > generate & persist."""
+    key = os.environ.get("SECRET_KEY")
+    if key:
+        return key
+    if os.path.exists(_KEY_FILE):
+        with open(_KEY_FILE) as f:
+            key = f.read().strip()
+        if key:
+            return key
+    key = secrets.token_hex(32)
+    try:
+        with open(_KEY_FILE, "w") as f:
+            f.write(key)
+    except OSError:
+        pass
+    return key
 
 
 def create_app(db_path: str | None = None) -> Flask:
@@ -12,7 +35,7 @@ def create_app(db_path: str | None = None) -> Flask:
         template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates"),
         static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "static"),
     )
-    app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
+    app.secret_key = _get_secret_key()
 
     if db_path:
         app.config["DB_PATH"] = db_path
