@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% block content %}
+<h2>Нова сесія експертного оцінювання</h2>
+<form method="post" class="form-grid">
+  <label>Назва
+    <input type="text" name="title" required value="Вибір цифрової платформи"/>
+  </label>
+  <label>Опис
+    <textarea name="description" rows="4">Пілотна сесія для демонстрації роботи системи, методів оцінювання та розрахунку показників узгодженості.</textarea>
+  </label>
+  <label>Альтернативи (кожна з нового рядка)
+    <textarea name="alternatives" rows="6">Альтернатива A
+Альтернатива B
+Альтернатива C
+Альтернатива D</textarea>
+  </label>
+  <label>Експерти (кожен з нового рядка)
+    <textarea name="experts" rows="6">Експерт 1
+Експерт 2
+Експерт 3
+Експерт 4</textarea>
+  </label>
+  <label>Коефіцієнти компетентності (кожен з нового рядка)
+    <textarea name="competencies" rows="6">0.90
+0.85
+0.80
+0.95</textarea>
+  </label>
+  <button class="btn" type="submit">Створити</button>
+</form>
+{% endblock %}

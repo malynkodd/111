@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block content %}
+<section class="hero">
+  <div>
+    <h2>Сесії експертного оцінювання</h2>
+    <p>Система дозволяє збирати індивідуальні оцінки, порівнювати п'ять методів агрегування та аналізувати узгодженість думок.</p>
+  </div>
+  <a class="btn" href="{{ url_for('create_session') }}">Створити сесію</a>
+</section>
+<div class="card-grid">
+  {% for session in sessions %}
+  <article class="card">
+    <h3>{{ session.title }}</h3>
+    <p>{{ session.description }}</p>
+    <p class="meta">Створено: {{ session.created_at }}</p>
+    <a class="btn secondary" href="{{ url_for('session_view', session_id=session.id) }}">Відкрити</a>
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}{% block content %}
+<section class="hero">
+  <div>
+    <h2>{{ session.title }}</h2>
+    <p>{{ session.description }}</p>
+  </div>
+  <a class="btn" href="{{ url_for('report', session_id=session.id) }}">PDF звіт</a>
+</section>
+
+<div class="stats">
+  <div class="stat"><span>Kendall W</span><strong>{{ "%.3f"|format(kendall_w) }}</strong></div>
+  <div class="stat"><span>Кількість експертів</span><strong>{{ experts|length }}</strong></div>
+  <div class="stat"><span>Кількість альтернатив</span><strong>{{ alternatives|length }}</strong></div>
+</div>
+
+<h3>Оцінки експертів (2 раунд)</h3>
+<table>
+  <thead><tr><th>Експерт</th>{% for alt in alternatives %}<th>{{ alt.name }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for expert in experts %}
+    <tr>
+      <td>{{ expert.full_name }} ({{ expert.competence }})</td>
+      {% for alt in alternatives %}
+        {% set ns = namespace(value=0) %}
+        {% for row in scores %}
+          {% if row.expert_id == expert.id and row.alternative_id == alt.id and row.round_no == 2 %}
+            {% set ns.value = row.score %}
+          {% endif %}
+        {% endfor %}
+        <td>{{ ns.value }}</td>
+      {% endfor %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h3>Результати методів</h3>
+<div class="card-grid">
+  {% for method_name, result in methods.items() %}
+    <article class="card">
+      <h4>{{ method_name }}</h4>
+      <ul>
+        {% for alt_name, value in result.scores.items() %}
+          <li>{{ alt_name }}: {{ "%.3f"|format(value) }}</li>
+        {% endfor %}
+      </ul>
+      <p class="winner">Рекомендоване рішення: <strong>{{ result.winner }}</strong></p>
+    </article>
+  {% endfor %}
+</div>
+
+<h3>Додаткові показники</h3>
+<table>
+  <thead><tr><th>Альтернатива</th><th>Коефіцієнт варіації</th><th>Ентропія</th></tr></thead>
+  <tbody>
+  {% for alt_name, val in cv.items() %}
+    <tr>
+      <td>{{ alt_name }}</td>
+      <td>{{ "%.3f"|format(val) }}</td>
+      <td>{{ "%.3f"|format(entropy[alt_name]) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
