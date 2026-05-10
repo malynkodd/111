@@ -43,17 +43,26 @@
   </div>
   <div class="col-md-3">
     <div class="card stat-card text-center p-3">
+      <span class="text-muted small">χ² / p-value</span>
+      <strong class="{% if chi_sq.significant %}text-success{% else %}text-secondary{% endif %}">
+        {{ "%.2f"|format(chi_sq.chi_squared) }}
+      </strong>
+      <small class="text-muted">p={{ "%.3f"|format(chi_sq.p_value) }} {% if chi_sq.significant %}<span class="badge bg-success">значущо</span>{% endif %}</small>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card stat-card text-center p-3">
       <span class="text-muted small">Експертів</span>
       <strong>{{ experts|length }}</strong>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
     <div class="card stat-card text-center p-3">
       <span class="text-muted small">Альтернатив</span>
       <strong>{{ alternatives|length }}</strong>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
     <div class="card stat-card text-center p-3">
       <span class="text-muted small">Раунд</span>
       <strong>{{ sess.current_round }} / {{ sess.max_rounds }}</strong>
