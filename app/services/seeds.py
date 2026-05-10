@@ -51,23 +51,6 @@ def _insert_experts(conn, session_id, expert_list) -> list:
     return ids
 
 
-def _insert_scores(conn, session_id, expert_ids, alt_ids, round_no, rankings) -> None:
-    """
-    rankings: list of lists, one per expert, each list = alt_names sorted best→worst (rank 1..n).
-    We convert ranks to scores as score = n - rank + 1 so rank-1 → highest score.
-    """
-    n = len(alt_ids)
-    for expert_id, ranking in zip(expert_ids, rankings):
-        for rank_0based, alt_id in enumerate(alt_ids):
-            alt_idx_in_ranking = ranking.index(rank_0based) if rank_0based in ranking else rank_0based
-            score = n - alt_idx_in_ranking
-            conn.execute(
-                "INSERT INTO scores (session_id, expert_id, alternative_id, round_no, score, is_locked) "
-                "VALUES (?, ?, ?, ?, ?, 1)",
-                (session_id, expert_id, alt_id, round_no, float(score)),
-            )
-
-
 def _insert_scores_direct(conn, session_id, expert_ids, alt_ids, round_no, score_matrix) -> None:
     """
     score_matrix: list of lists [expert_idx][alt_idx] = score value.

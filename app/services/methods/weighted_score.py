@@ -1,6 +1,8 @@
 from __future__ import annotations
 from collections import defaultdict
 
+from app.utils.math_utils import normalize, safe_divide
+
 METHOD_NAME = "Зважений середній бал"
 METHOD_CLASS = "scoring"
 
@@ -15,16 +17,15 @@ def calculate(alternatives: list, expert_scores: list, competency_weights: list)
         {"ranking": [...], "scores": {...}, "details": {...}}
     """
     totals = defaultdict(float)
-    denom = sum(competency_weights) or 1.0
+    denom = sum(competency_weights)
     for score_map, weight in zip(expert_scores, competency_weights):
         for alt in alternatives:
             totals[alt] += score_map.get(alt, 0) * weight
-    for alt in totals:
-        totals[alt] /= denom
+    for alt in list(totals):
+        totals[alt] = safe_divide(totals[alt], denom, default=totals[alt])
 
     ranking = sorted(alternatives, key=lambda a: -totals.get(a, 0))
-    total_sum = sum(totals.values()) or 1.0
-    normalized = {a: totals[a] / total_sum for a in alternatives}
+    normalized = normalize({a: totals.get(a, 0) for a in alternatives})
 
     return {
         "ranking": ranking,

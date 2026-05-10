@@ -41,14 +41,25 @@ def init_db(db_path: str = DB_PATH) -> None:
             status TEXT DEFAULT 'active',
             max_rounds INTEGER DEFAULT 3,
             current_round INTEGER DEFAULT 1,
-            created_by INTEGER REFERENCES users(id)
+            created_by INTEGER REFERENCES users(id),
+            method_params TEXT DEFAULT '{}',
+            is_anonymous INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS alternatives (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id INTEGER NOT NULL,
             name TEXT NOT NULL,
+            description TEXT DEFAULT '',
             FOREIGN KEY (session_id) REFERENCES sessions(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS session_experts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES sessions(id),
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            role TEXT NOT NULL DEFAULT 'expert',
+            UNIQUE(session_id, user_id)
         );
 
         CREATE TABLE IF NOT EXISTS experts (
@@ -119,6 +130,16 @@ def init_db(db_path: str = DB_PATH) -> None:
     ]:
         try:
             cur.execute(f"ALTER TABLE scores ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
+    # Migrate sessions/alternatives — add spec-required columns
+    for sql in [
+        "ALTER TABLE sessions ADD COLUMN method_params TEXT DEFAULT '{}'",
+        "ALTER TABLE sessions ADD COLUMN is_anonymous INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE alternatives ADD COLUMN description TEXT DEFAULT ''",
+    ]:
+        try:
+            cur.execute(sql)
         except Exception:
             pass
     conn.commit()

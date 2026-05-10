@@ -7,7 +7,7 @@ from flask import (
 )
 from app.models import get_conn
 from app.blueprints.auth import login_required
-from app.services.validation import check_transitivity
+from app.services.validation import check_transitivity, validate_score_range
 
 bp = Blueprint("scoring", __name__)
 
@@ -102,6 +102,26 @@ def score(session_id: int):
                 for v in violations[:3]:
                     flash(f"Попередження: порушення транзитивності — {v[0]} > {v[1]} > {v[2]}, але {v[2]} > {v[0]}.")
 
+        # Parse and validate all submitted scores BEFORE any DB writes
+        parsed: dict = {}  # {(expert_id, alt_id): float}
+        for expert_id in submittable_ids:
+            for alt in alts:
+                key = f"score_{expert_id}_{alt['id']}"
+                raw = request.form.get(key, "0")
+                try:
+                    score_val = float(raw) if raw and raw.strip() else 0.0
+                except ValueError:
+                    score_val = 0.0
+                ok, err = validate_score_range(score_val)
+                if not ok:
+                    conn.close()
+                    flash(
+                        f"Помилка: оцінка для альтернативи «{alt['name']}» — {err}",
+                        "danger",
+                    )
+                    return redirect(url_for("scoring.score", session_id=session_id))
+                parsed[(expert_id, alt["id"])] = score_val
+
         # Delete only unlocked scores and re-insert with lock
         now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         for expert_id in submittable_ids:
@@ -110,12 +130,7 @@ def score(session_id: int):
                 (session_id, round_no, expert_id),
             )
             for alt in alts:
-                key = f"score_{expert_id}_{alt['id']}"
-                raw = request.form.get(key, "0")
-                try:
-                    score_val = float(raw) if raw.strip() else 0.0
-                except ValueError:
-                    score_val = 0.0
+                score_val = parsed[(expert_id, alt["id"])]
                 conn.execute(
                     "INSERT INTO scores (session_id, expert_id, alternative_id, round_no, score, is_locked, submitted_at) "
                     "VALUES (?,?,?,?,?,1,?)",

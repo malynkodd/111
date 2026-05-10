@@ -50,7 +50,7 @@ def chi_squared_test(kendall_w: float, m: int, n: int) -> dict:
     if _SCIPY_AVAILABLE:
         p_value = float(1.0 - _chi2_dist.cdf(chi_sq, df))
     else:
-        p_value = _chi2_p_approx(chi_sq, df)
+        p_value = _chi2_p_normal_approx(chi_sq, df)
     return {
         "chi_squared": round(chi_sq, 4),
         "df": df,
@@ -59,14 +59,14 @@ def chi_squared_test(kendall_w: float, m: int, n: int) -> dict:
     }
 
 
-def _chi2_p_approx(x: float, k: int) -> float:
-    """Wilson-Hilferty approximation for chi-squared p-value (upper tail)."""
+def _chi2_p_normal_approx(x: float, k: int) -> float:
+    # Normal approximation for chi-squared p-value (not full Wilson-Hilferty).
+    # Accurate enough for df >= 5. For small df, install scipy for exact values.
     if x <= 0 or k <= 0:
         return 1.0
     mu = k
     sigma2 = 2 * k
     z = (x - mu) / math.sqrt(sigma2)
-    # Normal approximation for the upper tail
     return max(0.0, min(1.0, 0.5 * math.erfc(z / math.sqrt(2))))
 
 
