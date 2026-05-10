@@ -1,6 +1,8 @@
 from __future__ import annotations
 from collections import defaultdict
 
+from app.utils.math_utils import normalize
+
 METHOD_NAME = "Метод Борда"
 METHOD_CLASS = "ranking"
 
@@ -23,8 +25,7 @@ def calculate(alternatives: list, expert_scores: list, competency_weights: list)
             totals[alt] += (n - i - 1) * weight
 
     ranking = sorted(alternatives, key=lambda a: -totals.get(a, 0))
-    total_sum = sum(totals.values()) or 1.0
-    normalized = {a: totals[a] / total_sum for a in alternatives}
+    normalized = normalize({a: totals.get(a, 0) for a in alternatives})
 
     return {
         "ranking": ranking,

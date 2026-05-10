@@ -21,9 +21,19 @@ def validate_scores_complete(
     return errors
 
 
-def validate_score_range(value: float, min_val: float = 0.0, max_val: float = 10.0) -> bool:
-    """Return True if value is within [min_val, max_val]."""
-    return min_val <= value <= max_val
+def validate_score_range(
+    value: float, min_val: float = 0.0, max_val: float = 10.0
+) -> tuple[bool, str]:
+    """Return (is_valid, error_message). error_message is "" when valid."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return False, f"значення '{value}' не є числом"
+    if v < min_val:
+        return False, f"значення {v} менше за {min_val}"
+    if v > max_val:
+        return False, f"значення {v} більше за {max_val}"
+    return True, ""
 
 
 def validate_competency_weights(weights: list[float]) -> list[str]:
