@@ -67,6 +67,8 @@ def init_db(db_path: str = DB_PATH) -> None:
             alternative_id INTEGER NOT NULL,
             round_no INTEGER NOT NULL DEFAULT 1,
             score REAL NOT NULL,
+            is_locked INTEGER NOT NULL DEFAULT 0,
+            submitted_at TEXT,
             FOREIGN KEY (session_id) REFERENCES sessions(id),
             FOREIGN KEY (expert_id) REFERENCES experts(id),
             FOREIGN KEY (alternative_id) REFERENCES alternatives(id)
@@ -110,6 +112,15 @@ def init_db(db_path: str = DB_PATH) -> None:
         cur.execute("ALTER TABLE experts ADD COLUMN user_id INTEGER")
     except Exception:
         pass
+    # Migrate scores table — add locking columns
+    for col, definition in [
+        ("is_locked", "INTEGER NOT NULL DEFAULT 0"),
+        ("submitted_at", "TEXT"),
+    ]:
+        try:
+            cur.execute(f"ALTER TABLE scores ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 
@@ -201,7 +212,7 @@ def session_summary(session_id: int, db_path: str | None = None):
         kendall_w_from_rankings, variation_coefficient,
         entropy_metric, build_rankings_from_scores,
         methods_correlation_matrix, detect_outlier_experts,
-        consensus_ranking, round_statistics,
+        consensus_ranking, round_statistics, chi_squared_test,
     )
 
     conn = get_conn(db_path)
@@ -274,6 +285,9 @@ def session_summary(session_id: int, db_path: str | None = None):
         r = build_rankings_from_scores(rscores, alt_names)
         kendall_w_by_round[rn] = kendall_w_from_rankings(r, alt_names)
 
+    # Chi-squared significance test for Kendall W
+    chi_sq_result = chi_squared_test(w, len(experts), len(alt_names))
+
     # Show the round with the most recent real data, not just current_round
     display_round = max(round_map) if round_map else (session["current_round"] if session else 1)
 
@@ -285,6 +299,7 @@ def session_summary(session_id: int, db_path: str | None = None):
         competences=competences,
         methods=methods,
         kendall_w=w,
+        chi_sq=chi_sq_result,
         cv=cv,
         entropy=ent,
         corr_matrix=corr_matrix,

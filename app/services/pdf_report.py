@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os
-import urllib.request
 from io import BytesIO
 from datetime import datetime
 
@@ -19,7 +18,6 @@ FONTS_DIR = os.path.join(APP_DIR, "fonts")
 FONT_PATH = os.path.join(FONTS_DIR, "DejaVuSans.ttf")
 FONT_BOLD_PATH = os.path.join(FONTS_DIR, "DejaVuSans-Bold.ttf")
 
-# System fallback locations (Linux/Mac)
 _SYSTEM_FONT_PATHS = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/dejavu/DejaVuSans.ttf",
@@ -66,7 +64,6 @@ def _ensure_font():
 
 def _styles():
     _ensure_font()
-    base = getSampleStyleSheet()
     normal = ParagraphStyle(
         "CustomNormal", fontName=_BODY_FONT, fontSize=10, leading=14,
     )
@@ -98,9 +95,7 @@ def _tbl_style(header_rows=1):
 
 
 def generate_report(session_data: dict, output_buffer: BytesIO) -> None:
-    """
-    Generate a complete PDF report into output_buffer.
-    """
+    """Generate a complete PDF report into output_buffer."""
     _ensure_font()
     st = _styles()
 
@@ -114,7 +109,8 @@ def generate_report(session_data: dict, output_buffer: BytesIO) -> None:
     )
     story = []
 
-    session = session_data.get("session")
+    # Support both key names: 'sess' (from session_summary) and 'session' (legacy/tests)
+    sess = session_data.get("sess") or session_data.get("session")
     alternatives = session_data.get("alternatives", [])
     experts = session_data.get("experts", [])
     methods = session_data.get("methods", {})
@@ -126,10 +122,12 @@ def generate_report(session_data: dict, output_buffer: BytesIO) -> None:
     consensus = session_data.get("consensus", [])
     kendall_w_by_round = session_data.get("kendall_w_by_round", {})
     competences = session_data.get("competences", [])
+    round_map = session_data.get("round_map", {})
+    alt_names = session_data.get("alt_names", [a["name"] if hasattr(a, "__getitem__") else str(a) for a in alternatives])
 
-    title = session["title"] if session else "Звіт"
-    description = session["description"] if session else ""
-    created_at = session["created_at"] if session else ""
+    title = sess["title"] if sess else "Звіт"
+    description = sess["description"] if sess else ""
+    created_at = sess["created_at"] if sess else ""
 
     # 1. Title page
     story.append(Spacer(1, 3 * cm))
@@ -137,12 +135,12 @@ def generate_report(session_data: dict, output_buffer: BytesIO) -> None:
     story.append(Spacer(1, 0.5 * cm))
     story.append(Paragraph(f"<b>Назва:</b> {title}", st["normal"]))
     story.append(Paragraph(f"<b>Дата:</b> {created_at}", st["normal"]))
-    story.append(Paragraph(f"<b>Експертів:</b> {len(experts)}", st["normal"]))
-    story.append(Paragraph(f"<b>Альтернатив:</b> {len(alternatives)}", st["normal"]))
+    story.append(Paragraph(f"<b>Кількість експертів:</b> {len(experts)}", st["normal"]))
+    story.append(Paragraph(f"<b>Кількість альтернатив:</b> {len(alternatives)}", st["normal"]))
     story.append(Paragraph(f"<b>Сформовано:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", st["normal"]))
     story.append(PageBreak())
 
-    # 2. Task description
+    # 2. Task description and evaluation procedure
     story.append(Paragraph("Опис задачі та процедури оцінювання", st["h1"]))
     story.append(Paragraph(description or "—", st["normal"]))
     story.append(Spacer(1, 0.4 * cm))
@@ -182,12 +180,57 @@ def generate_report(session_data: dict, output_buffer: BytesIO) -> None:
     story.append(tbl)
     story.append(Spacer(1, 0.4 * cm))
 
-    # 5. Method results
-    story.append(Paragraph("Результати методів оцінювання", st["h1"]))
+    # 5. Individual expert responses per round
+    if round_map and alt_names:
+        story.append(Paragraph("Індивідуальні оцінки експертів по раундах", st["h1"]))
+        expert_name_map = {e["id"]: e["full_name"] for e in experts}
+        for rn in sorted(round_map):
+            story.append(Paragraph(f"Раунд {rn}", st["h2"]))
+            rscores = round_map[rn]
+            header = ["Експерт"] + list(alt_names)
+            rows = [header]
+            for expert_id, score_map in rscores.items():
+                row = [expert_name_map.get(expert_id, str(expert_id))]
+                for aname in alt_names:
+                    row.append(f"{score_map.get(aname, 0):.1f}")
+                rows.append(row)
+            col_w = [4 * cm] + [max(1.5, 14 / len(alt_names)) * cm] * len(alt_names)
+            tbl = Table(rows, colWidths=col_w)
+            tbl.setStyle(_tbl_style())
+            story.append(tbl)
+            story.append(Spacer(1, 0.3 * cm))
+        story.append(PageBreak())
+
+    # 6. Collective results per method — comparison table
+    story.append(Paragraph("Порівняльна таблиця результатів методів", st["h1"]))
+    if methods and alt_names:
+        method_names_list = list(methods.keys())
+        header = ["Альтернатива"] + method_names_list + ["Консенсус"]
+        rows = [header]
+        # Build rank map per method
+        rank_maps = {}
+        for mn, res in methods.items():
+            ranking = res.get("ranking", [])
+            rank_maps[mn] = {a: i + 1 for i, a in enumerate(ranking)}
+        consensus_rank = {a: i + 1 for i, a in enumerate(consensus)} if consensus else {}
+        for alt in alt_names:
+            row = [alt]
+            for mn in method_names_list:
+                row.append(str(rank_maps.get(mn, {}).get(alt, "—")))
+            row.append(str(consensus_rank.get(alt, "—")))
+            rows.append(row)
+        col_w = [4 * cm] + [max(1.5, 12 / max(len(method_names_list), 1)) * cm] * len(method_names_list) + [2 * cm]
+        tbl = Table(rows, colWidths=col_w)
+        tbl.setStyle(_tbl_style())
+        story.append(tbl)
+        story.append(Spacer(1, 0.4 * cm))
+
+    # Individual method score details
+    story.append(Paragraph("Детальні результати по методах", st["h1"]))
     for method_name, result in methods.items():
         story.append(Paragraph(method_name, st["h2"]))
         scores = result.get("scores", {})
-        winner = result.get("winner", "")
+        winner = result.get("winner", result.get("ranking", [""])[0] if result.get("ranking") else "")
         rows = [["Альтернатива", "Бал"]]
         for alt_name, val in sorted(scores.items(), key=lambda x: -x[1]):
             rows.append([alt_name, f"{val:.3f}"])
@@ -199,39 +242,40 @@ def generate_report(session_data: dict, output_buffer: BytesIO) -> None:
 
     story.append(PageBreak())
 
-    # 6. Correlation matrix
-    if corr_matrix:
-        story.append(Paragraph("Матриця кореляцій між методами", st["h1"]))
-        method_names = list(corr_matrix.keys())
-        header = ["Метод"] + method_names
-        rows = [header]
-        for mn in method_names:
-            row = [mn]
-            for mn2 in method_names:
-                cell = corr_matrix.get(mn, {}).get(mn2, {})
-                row.append(f"τ={cell.get('tau',0):.2f}\nρ={cell.get('rho',0):.2f}")
-            rows.append(row)
-        col_w = [4 * cm] + [2.5 * cm] * len(method_names)
-        tbl = Table(rows, colWidths=col_w)
-        tbl.setStyle(_tbl_style())
-        story.append(tbl)
-        story.append(Spacer(1, 0.4 * cm))
-
-    # 7. Consistency metrics
-    story.append(Paragraph("Метрики узгодженості", st["h1"]))
+    # 7. Concordance analysis (W, χ², CV, entropy)
+    story.append(Paragraph("Аналіз узгодженості думок експертів", st["h1"]))
     story.append(Paragraph(f"Kendall W (останній раунд): <b>{kendall_w:.3f}</b>", st["normal"]))
+
+    # Chi-squared test
+    try:
+        from app.services.metrics import chi_squared_test
+        n_alts = len(alt_names)
+        n_experts = len(experts)
+        chi_result = chi_squared_test(kendall_w, n_experts, n_alts)
+        story.append(Paragraph(
+            f"χ² = {chi_result['chi_squared']:.3f}, df = {chi_result['df']}, "
+            f"p = {chi_result['p_value']:.4f} "
+            f"({'значущо' if chi_result['significant'] else 'незначущо'} на рівні α=0.05)",
+            st["normal"],
+        ))
+    except Exception:
+        pass
+
     if kendall_w_by_round:
-        rounds_data = [["Раунд", "Kendall W"]]
+        story.append(Spacer(1, 0.3 * cm))
+        story.append(Paragraph("Динаміка Kendall W по раундах", st["h2"]))
+        rounds_data = [["Раунд", "Kendall W", "Оцінка"]]
         for rn, w in sorted(kendall_w_by_round.items()):
-            rounds_data.append([str(rn), f"{w:.3f}"])
-        tbl = Table(rounds_data, colWidths=[5 * cm, 5 * cm])
+            assessment = "Висока" if w >= 0.7 else ("Середня" if w >= 0.5 else "Низька")
+            rounds_data.append([str(rn), f"{w:.3f}", assessment])
+        tbl = Table(rounds_data, colWidths=[3 * cm, 4 * cm, 5 * cm])
         tbl.setStyle(_tbl_style())
         story.append(tbl)
         story.append(Spacer(1, 0.3 * cm))
 
     if cv:
-        story.append(Paragraph("Коефіцієнти варіації та ентропія", st["h2"]))
-        cv_data = [["Альтернатива", "CV", "Ентропія"]]
+        story.append(Paragraph("Коефіцієнти варіації та ентропія по альтернативах", st["h2"]))
+        cv_data = [["Альтернатива", "CV (варіація)", "Ентропія"]]
         for alt_name in cv:
             cv_data.append([alt_name, f"{cv[alt_name]:.3f}", f"{entropy.get(alt_name, 0):.3f}"])
         tbl = Table(cv_data, colWidths=[9 * cm, 3 * cm, 3 * cm])
@@ -239,7 +283,25 @@ def generate_report(session_data: dict, output_buffer: BytesIO) -> None:
         story.append(tbl)
         story.append(Spacer(1, 0.4 * cm))
 
-    # 8. Outliers
+    # 8. Correlation matrix between methods
+    if corr_matrix:
+        story.append(Paragraph("Матриця кореляцій між методами (Kendall τ / Spearman ρ)", st["h1"]))
+        method_names = list(corr_matrix.keys())
+        header = ["Метод"] + method_names
+        rows = [header]
+        for mn in method_names:
+            row = [mn]
+            for mn2 in method_names:
+                cell = corr_matrix.get(mn, {}).get(mn2, {})
+                row.append(f"τ={cell.get('tau', 0):.2f}\nρ={cell.get('rho', 0):.2f}")
+            rows.append(row)
+        col_w = [4 * cm] + [2.5 * cm] * len(method_names)
+        tbl = Table(rows, colWidths=col_w)
+        tbl.setStyle(_tbl_style())
+        story.append(tbl)
+        story.append(Spacer(1, 0.4 * cm))
+
+    # 9. Outlier experts
     if outliers:
         story.append(Paragraph("Аутлайери серед експертів", st["h1"]))
         out_data = [["ID Експерта", "Відхилення (σ)"]]
@@ -250,24 +312,28 @@ def generate_report(session_data: dict, output_buffer: BytesIO) -> None:
         story.append(tbl)
         story.append(Spacer(1, 0.4 * cm))
 
-    # 9. Consensus ranking
+    # 10. Consensus ranking
     if consensus:
         story.append(Paragraph("Консенсусне ранжування", st["h1"]))
         for i, alt in enumerate(consensus, 1):
             story.append(Paragraph(f"{i}. {alt}", st["normal"]))
         story.append(Spacer(1, 0.4 * cm))
 
-    # 10. Conclusions
-    story.append(Paragraph("Висновки та рекомендації", st["h1"]))
+    # 11. Recommended decision with justification
+    story.append(Paragraph("Рекомендоване рішення та обґрунтування", st["h1"]))
     if consensus:
+        winner = consensus[0]
         story.append(Paragraph(
-            f"На підставі аналізу результатів п'яти методів оцінювання та "
-            f"консенсусного ранжування рекомендується обрати: <b>{consensus[0]}</b>.",
+            f"На підставі комплексного аналізу із застосуванням п'яти методів оцінювання "
+            f"та консенсусного ранжування <b>рекомендується обрати: {winner}</b>.",
             st["normal"],
         ))
-    w_interp = "достатня" if kendall_w >= 0.7 else "недостатня"
+        story.append(Spacer(1, 0.2 * cm))
+
+    w_level = "висока" if kendall_w >= 0.7 else ("середня" if kendall_w >= 0.5 else "низька")
     story.append(Paragraph(
-        f"Узгодженість думок експертів (Kendall W = {kendall_w:.3f}) — {w_interp}.",
+        f"Ступінь узгодженості думок експертів (Kendall W = {kendall_w:.3f}) — {w_level}. "
+        f"{'Результати вважаються статистично значущими.' if kendall_w >= 0.5 else 'Рекомендується проведення додаткових раундів.'}",
         st["normal"],
     ))
     if outliers:
