@@ -45,6 +45,10 @@ def create_app(db_path: str | None = None) -> Flask:
     init_db(_db)
     seed_demo(_db)
 
+    with app.app_context():
+        from .services.seeds import seed_example_sessions
+        seed_example_sessions(_db)
+
     from app.blueprints.auth import bp as auth_bp
     from app.blueprints.sessions import bp as sessions_bp
     from app.blueprints.scoring import bp as scoring_bp

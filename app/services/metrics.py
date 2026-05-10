@@ -3,6 +3,12 @@ import math
 import statistics
 from collections import defaultdict
 
+try:
+    from scipy.stats import chi2 as _chi2_dist
+    _SCIPY_AVAILABLE = True
+except ImportError:
+    _SCIPY_AVAILABLE = False
+
 
 def build_rankings_from_scores(latest_scores: dict, alternatives: list) -> list:
     rankings = []
@@ -29,6 +35,39 @@ def kendall_w_from_rankings(rankings: list, alternatives: list) -> float:
     if denominator == 0:
         return 0.0
     return 12 * s / denominator
+
+
+def chi_squared_test(kendall_w: float, m: int, n: int) -> dict:
+    """
+    Chi-squared significance test for Kendall's W.
+    χ² = W * m * (n - 1), df = n - 1
+    Returns {"chi_squared": float, "df": int, "p_value": float, "significant": bool}
+    """
+    if n <= 1 or m <= 0:
+        return {"chi_squared": 0.0, "df": max(0, n - 1), "p_value": 1.0, "significant": False}
+    chi_sq = kendall_w * m * (n - 1)
+    df = n - 1
+    if _SCIPY_AVAILABLE:
+        p_value = float(1.0 - _chi2_dist.cdf(chi_sq, df))
+    else:
+        p_value = _chi2_p_approx(chi_sq, df)
+    return {
+        "chi_squared": round(chi_sq, 4),
+        "df": df,
+        "p_value": round(p_value, 4),
+        "significant": p_value < 0.05,
+    }
+
+
+def _chi2_p_approx(x: float, k: int) -> float:
+    """Wilson-Hilferty approximation for chi-squared p-value (upper tail)."""
+    if x <= 0 or k <= 0:
+        return 1.0
+    mu = k
+    sigma2 = 2 * k
+    z = (x - mu) / math.sqrt(sigma2)
+    # Normal approximation for the upper tail
+    return max(0.0, min(1.0, 0.5 * math.erfc(z / math.sqrt(2))))
 
 
 def variation_coefficient(latest_scores: dict, expert_data: list, alternatives: list) -> dict:
