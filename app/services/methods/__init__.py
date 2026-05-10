@@ -4,8 +4,8 @@ Methods package. Exposes:
   2. Legacy function API (weighted_score_method etc.) for backward compatibility
 """
 from __future__ import annotations
-from collections import defaultdict
 from . import weighted_score, borda, condorcet, delphi, ahp
+from app.services.validation import check_transitivity  # re-export
 
 # ── Registry (new unified API) ────────────────────────────────────────────────
 
@@ -26,12 +26,26 @@ METHOD_DISPLAY_NAMES = {
 }
 
 
-def run_all_methods(alternatives: list, expert_scores: list, competency_weights: list) -> dict:
-    """Run all registered methods and return combined results keyed by display name."""
+def run_all_methods(
+    alternatives: list,
+    expert_scores: list,
+    competency_weights: list,
+    round_history: list | None = None,
+) -> dict:
+    """Run all registered methods and return combined results keyed by display name.
+
+    round_history: optional list of previous-round expert_scores lists; passed to
+    delphi.calculate() when available so the iterative behaviour kicks in.
+    """
     results = {}
     for name, module in METHOD_REGISTRY.items():
         display = METHOD_DISPLAY_NAMES[name]
-        results[display] = module.calculate(alternatives, expert_scores, competency_weights)
+        if name == "delphi":
+            results[display] = module.calculate(
+                alternatives, expert_scores, competency_weights, round_history=round_history
+            )
+        else:
+            results[display] = module.calculate(alternatives, expert_scores, competency_weights)
     return results
 
 
@@ -93,38 +107,14 @@ def ahp_like_method(latest_scores, expert_data, alternatives):
     return {"scores": priorities, "winner": winner, "ranking": result["ranking"]}
 
 
-def check_transitivity(pairwise_comparisons: dict) -> tuple:
-    """
-    Check transitivity of pairwise comparisons.
-    {('A','B'): 1, ...} where 1=first better, -1=second better, 0=equal.
-    Returns (is_transitive: bool, violations: list of tuples).
-    """
-    alts = set()
-    for a, b in pairwise_comparisons:
-        alts.add(a)
-        alts.add(b)
-    alts = list(alts)
-
-    def beats(x, y):
-        v = pairwise_comparisons.get((x, y))
-        if v is not None:
-            return v == 1
-        v = pairwise_comparisons.get((y, x))
-        if v is not None:
-            return v == -1
-        return False
-
-    violations = []
-    for a in alts:
-        for b in alts:
-            if a == b:
-                continue
-            for c in alts:
-                if c == a or c == b:
-                    continue
-                if beats(a, b) and beats(b, c) and beats(c, a):
-                    triple = tuple(sorted([a, b, c]))
-                    if triple not in violations:
-                        violations.append(triple)
-
-    return len(violations) == 0, violations
+__all__ = [
+    "METHOD_REGISTRY",
+    "METHOD_DISPLAY_NAMES",
+    "run_all_methods",
+    "weighted_score_method",
+    "borda_method",
+    "condorcet_method",
+    "delphi_method",
+    "ahp_like_method",
+    "check_transitivity",
+]

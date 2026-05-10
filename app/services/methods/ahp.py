@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from app.utils.math_utils import normalize, safe_divide
+
 METHOD_NAME = "Метод парних порівнянь (AHP)"
-METHOD_CLASS = "pairwise"
+METHOD_CLASS = "priority"
 
 
 def _pairwise_scale(v1: float, v2: float) -> float:
@@ -65,14 +67,13 @@ def calculate(alternatives: list, expert_scores: list, competency_weights: list)
         for i in range(n)
         if priorities[alternatives[i]] > 0
     ) / n
-    ci = (lambda_max - n) / (n - 1) if n > 1 else 0
+    ci = safe_divide(lambda_max - n, n - 1) if n > 1 else 0
     ri_table = {1: 0, 2: 0, 3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45}
     ri = ri_table.get(n, 1.49)
-    cr = ci / ri if ri > 0 else 0
+    cr = safe_divide(ci, ri)
 
     ranking = sorted(alternatives, key=lambda a: -priorities.get(a, 0))
-    total_sum = sum(priorities.values()) or 1.0
-    normalized_scores = {a: priorities[a] / total_sum for a in alternatives}
+    normalized_scores = normalize({a: priorities.get(a, 0) for a in alternatives})
 
     return {
         "ranking": ranking,
