@@ -92,3 +92,63 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("auth.login"))
+
+
+@bp.route("/users")
+@login_required
+@role_required("organizer")
+def users():
+    conn = get_conn()
+    all_users = conn.execute(
+        "SELECT * FROM users ORDER BY created_at DESC"
+    ).fetchall()
+    linked = conn.execute(
+        """
+        SELECT e.user_id, e.full_name, s.title, s.id AS session_id
+        FROM experts e
+        JOIN sessions s ON s.id = e.session_id
+        WHERE e.user_id IS NOT NULL
+        """
+    ).fetchall()
+    conn.close()
+    links_map: dict = {}
+    for row in linked:
+        links_map.setdefault(row["user_id"], []).append(
+            {"expert_name": row["full_name"], "session_title": row["title"], "session_id": row["session_id"]}
+        )
+    return render_template("auth/users.html", users=all_users, links_map=links_map)
+
+
+@bp.route("/users/<int:user_id>/role", methods=["POST"])
+@login_required
+@role_required("organizer")
+def change_role(user_id: int):
+    new_role = request.form.get("role", "observer")
+    if new_role not in ("organizer", "expert", "observer"):
+        flash("Невідома роль.")
+        return redirect(url_for("auth.users"))
+    if user_id == session.get("user_id"):
+        flash("Не можна змінити власну роль.")
+        return redirect(url_for("auth.users"))
+    conn = get_conn()
+    conn.execute("UPDATE users SET role=? WHERE id=?", (new_role, user_id))
+    conn.commit()
+    conn.close()
+    flash("Роль оновлено.")
+    return redirect(url_for("auth.users"))
+
+
+@bp.route("/users/<int:user_id>/delete", methods=["POST"])
+@login_required
+@role_required("organizer")
+def delete_user(user_id: int):
+    if user_id == session.get("user_id"):
+        flash("Не можна видалити власний акаунт.")
+        return redirect(url_for("auth.users"))
+    conn = get_conn()
+    conn.execute("UPDATE experts SET user_id=NULL WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+    conn.commit()
+    conn.close()
+    flash("Користувача видалено.")
+    return redirect(url_for("auth.users"))
