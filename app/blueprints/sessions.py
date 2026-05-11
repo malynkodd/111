@@ -99,9 +99,22 @@ def create():
             alt_ids.append(cur.lastrowid)
         expert_ids = []
         for name, comp in zip(experts, competencies):
+            linked_user_id = None
+            display_name = name
+            if "@" in name:
+                parts = name.rsplit("@", 1)
+                display_name = parts[0].strip()
+                username = parts[1].strip()
+                row = cur.execute(
+                    "SELECT id FROM users WHERE username=?", (username,)
+                ).fetchone()
+                if row:
+                    linked_user_id = row["id"]
+                else:
+                    flash(f"Користувача @{username} не знайдено — експерт '{display_name}' створений без прив'язки.")
             cur.execute(
-                "INSERT INTO experts (session_id, full_name, competence) VALUES (?, ?, ?)",
-                (sess_id, name, float(comp)),
+                "INSERT INTO experts (session_id, full_name, competence, user_id) VALUES (?, ?, ?, ?)",
+                (sess_id, display_name, float(comp), linked_user_id),
             )
             expert_ids.append(cur.lastrowid)
         for expert_id in expert_ids:
@@ -348,3 +361,36 @@ def mark_ready(session_id: int, round_no: int):
         flash("Готовність до наступного раунду підтверджено.")
     conn.close()
     return redirect(url_for("sessions.feedback", session_id=session_id, round_no=round_no))
+
+
+@bp.route("/session/<int:session_id>/link-expert", methods=["POST"])
+@login_required
+@role_required("organizer")
+def link_expert(session_id: int):
+    expert_id = int(request.form["expert_id"])
+    username = request.form.get("username", "").strip()
+    conn = get_conn()
+
+    expert = conn.execute(
+        "SELECT id FROM experts WHERE id=? AND session_id=?", (expert_id, session_id)
+    ).fetchone()
+    if not expert:
+        conn.close()
+        flash("Експерта не знайдено.")
+        return redirect(url_for("sessions.detail", session_id=session_id))
+
+    if username:
+        user = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+        if not user:
+            conn.close()
+            flash(f"Користувача @{username} не знайдено.")
+            return redirect(url_for("sessions.detail", session_id=session_id))
+        conn.execute("UPDATE experts SET user_id=? WHERE id=?", (user["id"], expert_id))
+        flash(f"Експерта прив'язано до акаунту @{username}.")
+    else:
+        conn.execute("UPDATE experts SET user_id=NULL WHERE id=?", (expert_id,))
+        flash("Прив'язку до акаунту знято.")
+
+    conn.commit()
+    conn.close()
+    return redirect(url_for("sessions.detail", session_id=session_id))

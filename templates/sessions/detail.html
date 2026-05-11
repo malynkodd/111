@@ -118,6 +118,43 @@
   </table>
 </div>
 
+<!-- Expert-user linking (organizer only) -->
+{% if current_user_role == 'organizer' %}
+<h4>Прив'язка експертів до акаунтів</h4>
+<div class="table-responsive mb-4">
+  <table class="table table-sm table-bordered align-middle">
+    <thead class="table-light">
+      <tr><th>Експерт</th><th>Прив'язаний акаунт</th><th>Дія</th></tr>
+    </thead>
+    <tbody>
+    {% for expert in experts %}
+    <tr>
+      <td>{{ expert.full_name }}</td>
+      <td>
+        {% if expert.user_id %}
+          <span class="badge bg-success">прив'язано (id={{ expert.user_id }})</span>
+        {% else %}
+          <span class="text-muted">не прив'язано</span>
+        {% endif %}
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('sessions.link_expert', session_id=sess.id) }}" class="d-flex gap-2">
+          <input type="hidden" name="expert_id" value="{{ expert.id }}">
+          <input type="text" name="username" class="form-control form-control-sm" style="width:160px"
+                 placeholder="@username" {% if expert.user_id %}value=""{% endif %}>
+          <button type="submit" class="btn btn-sm btn-outline-primary">Прив'язати</button>
+          {% if expert.user_id %}
+          <button type="submit" name="username" value="" class="btn btn-sm btn-outline-danger">Відв'язати</button>
+          {% endif %}
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 <!-- Method results -->
 <h4>Результати методів</h4>
 <div class="row g-3 mb-4">
