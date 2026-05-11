@@ -33,6 +33,7 @@
         <li class="nav-item"><a class="nav-link" href="{{ url_for('sessions.index') }}">Головна</a></li>
         {% if session.get('role') == 'organizer' %}
         <li class="nav-item"><a class="nav-link" href="{{ url_for('sessions.create') }}">Нова сесія</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.users') }}"><i class="bi bi-people"></i> Користувачі</a></li>
         {% endif %}
         <li class="nav-item"><a class="nav-link" href="{{ url_for('sessions.history') }}">Архів</a></li>
       </ul>
